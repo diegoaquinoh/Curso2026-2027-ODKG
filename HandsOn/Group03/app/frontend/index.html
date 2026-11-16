@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terraces &amp; Night Noise · Madrid</title>
+  <meta name="description" content="Is there an association between registered terraces near a Madrid noise monitoring station and the night-time noise it measures? Built on linked open data.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1020'/%3E%3Crect x='7' y='14' width='3' height='10' rx='1.5' fill='%23ffb347'/%3E%3Crect x='14.5' y='8' width='3' height='16' rx='1.5' fill='%23f15bb5'/%3E%3Crect x='22' y='11' width='3' height='13' rx='1.5' fill='%235aa9e6'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="masthead reveal">
+    <div class="brand">
+      <span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <h1>Terraces <em>&amp;</em> night noise</h1>
+    </div>
+    <p class="question">Do stations surrounded by more registered terraces record
+      <em>louder nights</em>?</p>
+  </header>
+
+  <section class="controls reveal" aria-label="Filters">
+    <div class="control control-radius">
+      <div class="control-head">
+        <label class="control-label" for="radius">Radius around stations</label>
+        <output class="control-value" id="radius-value" for="radius">250 m</output>
+      </div>
+      <div class="control-body">
+        <div class="segmented" role="group" aria-label="Radius presets">
+          <button type="button" data-radius="100">100 m</button>
+          <button type="button" data-radius="250">250 m</button>
+          <button type="button" data-radius="500">500 m</button>
+        </div>
+        <div class="range-wrap">
+          <input id="radius" type="range" min="50" max="1000" step="25" value="250" aria-describedby="radius-value">
+          <div class="range-scale" aria-hidden="true"><span>50 m</span><span>1 km</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="control control-dates">
+      <div class="control-head">
+        <span class="control-label" id="dates-label">Noise dates</span>
+        <span class="control-hint">Night period · 23:00–07:00</span>
+      </div>
+      <div class="control-body date-row" role="group" aria-labelledby="dates-label">
+        <label class="date-field"><span>From</span><input id="start" type="date" required></label>
+        <span class="date-sep" aria-hidden="true">→</span>
+        <label class="date-field"><span>To</span><input id="end" type="date" required></label>
+      </div>
+    </div>
+  </section>
+
+  <p class="error" id="error" role="alert" hidden></p>
+
+  <main class="grid">
+    <section class="panel map-panel reveal" aria-labelledby="map-title">
+      <div class="panel-head">
+        <h2 id="map-title">Monitoring map</h2>
+        <label class="toggle"><input type="checkbox" id="show-terraces" checked> Show terraces</label>
+      </div>
+      <div id="map" role="region" aria-label="Map of noise stations and terraces"></div>
+      <div class="legend" aria-label="Legend">
+        <div class="legend-scale">
+          <span>Mean night LAeq</span>
+          <div class="scale-bar"></div>
+          <div class="scale-ticks"><span>≤50</span><span>55</span><span>60</span><span>65</span><span>≥70 dB</span></div>
+        </div>
+        <div class="legend-items">
+          <span><i class="dot dot-terrace"></i>Registered terrace</span>
+          <span><i class="dot dot-none"></i>No noise data in range</span>
+          <span><i class="ring"></i>Number = terraces within radius</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel stats-panel reveal" aria-labelledby="corr-title">
+      <div class="panel-head">
+        <h2 id="corr-title">Terraces vs night noise</h2>
+      </div>
+      <div class="corr">
+        <div class="corr-main">
+          <span class="corr-label">Pearson <i>r</i></span>
+          <span class="corr-value" id="corr-value">—</span>
+        </div>
+        <div class="corr-side">
+          <p class="corr-strength" id="corr-strength">&nbsp;</p>
+          <p class="corr-n" id="corr-n">&nbsp;</p>
+          <p class="corr-excluded" id="corr-excluded">&nbsp;</p>
+        </div>
+      </div>
+      <p class="caveat"><strong>An association, not a cause.</strong> Traffic, nightlife and street
+        layout can drive both terraces and noise. A high <i>r</i> does not show that terraces make nights louder.</p>
+      <div class="chart-wrap">
+        <canvas id="scatter" aria-label="Scatter plot of terraces within radius against mean night noise per station" role="img"></canvas>
+      </div>
+      <p class="hint">Click a point or a station on the map to see its details.</p>
+    </section>
+
+    <section class="panel detail-panel reveal" aria-labelledby="detail-title" id="detail-panel">
+      <div class="panel-head">
+        <h2 id="detail-title">Station detail</h2>
+        <button type="button" class="close" id="detail-close" hidden aria-label="Close station detail">Close ✕</button>
+      </div>
+      <div id="detail-empty" class="empty">
+        <p>Select a station on the map, in the chart or in the ranking to see its name,
+          its terrace count, its mean night-time noise and the terraces around it.</p>
+      </div>
+      <div id="detail" hidden>
+        <h3 id="d-name"></h3>
+        <p class="detail-district" id="d-district"></p>
+        <dl class="kpis">
+          <div><dt>Terraces within <span id="d-radius"></span></dt><dd id="d-terraces"></dd></div>
+          <div><dt>Mean night noise <span class="muted" id="d-range"></span></dt><dd id="d-noise"></dd></div>
+          <div><dt>Nights with data</dt><dd id="d-nights"></dd></div>
+        </dl>
+        <h4 class="sub">Terraces within the radius</h4>
+        <div class="table-scroll">
+          <table class="data" id="terrace-table">
+            <thead><tr>
+              <th scope="col" data-key="distance" class="num" aria-sort="ascending">Distance</th>
+              <th scope="col" data-key="neighbourhood">Neighbourhood</th>
+              <th scope="col" data-key="district">District</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel ranking-panel reveal" aria-labelledby="ranking-title">
+      <div class="panel-head">
+        <h2 id="ranking-title">Stations ranked</h2>
+        <span class="muted small" id="ranking-note"></span>
+      </div>
+      <div class="table-scroll tall">
+        <table class="data" id="ranking-table">
+          <thead><tr>
+            <th scope="col" data-key="name">Station</th>
+            <th scope="col" data-key="district">District</th>
+            <th scope="col" data-key="terraces" class="num" aria-sort="descending">Terraces</th>
+            <th scope="col" data-key="meanLaeq" class="num">Night LAeq</th>
+            <th scope="col" data-key="nights" class="num">Nights</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="loading" id="loading" aria-hidden="true">
+    <span class="meter big"><i></i><i></i><i></i><i></i><i></i></span>
+    <p>Loading linked data…</p>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

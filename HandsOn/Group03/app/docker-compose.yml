@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    image: group03-terraces-night-noise
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      MADRIDNOISE_RDF_DIR: /data/rdf
+    volumes:
+      # The linked RDF exports of Group03 (read-only); they are not copied into the image.
+      - ../rdf:/data/rdf:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/meta')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
